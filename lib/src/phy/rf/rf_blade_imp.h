@@ -23,6 +23,7 @@
 #define SRSRAN_RF_BLADE_IMP_H_
 
 #include "srsran/config.h"
+#include "srsran/phy/common/phy_common.h"
 #include "srsran/phy/rf/rf.h"
 
 #define DEVNAME "bladerf"
