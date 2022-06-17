@@ -59,7 +59,7 @@ std::string valid_arfcns_to_string(uint32_t band);
 // sib.conf parsing
 namespace sib_sections {
 
-int parse_sib1(std::string filename, asn1::rrc::sib_type1_s* data);
+int parse_sib1(std::string filename, asn1::rrc::sib_type1_s* data, all_args_t* args);
 int parse_sib2(std::string filename, asn1::rrc::sib_type2_s* data);
 int parse_sib3(std::string filename, asn1::rrc::sib_type3_s* data);
 int parse_sib4(std::string filename, asn1::rrc::sib_type4_s* data);

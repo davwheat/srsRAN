@@ -15993,3 +15993,129 @@ SRSASN_CODE ue_radio_access_cap_info_s::crit_exts_c_::c1_c_::unpack(cbit_ref& br
   }
   return SRSASN_SUCCESS;
 }
+
+// FreqBandInformationNR-v1510 ::= SEQUENCE
+asn1::SRSASN_CODE freq_band_info_nr_v1510_s::pack(asn1::bit_ref& bref) const
+{
+	HANDLE_CODE(bref.pack(1, 1)); // NR
+ HANDLE_CODE(bref.pack(max_bandwidth_requested_ul_nr_r15_present, 1));
+  HANDLE_CODE(bref.pack(max_bandwidth_requested_dl_nr_r15_present, 1));
+  HANDLE_CODE(bref.pack(0, 1)); // max carriers
+  HANDLE_CODE(bref.pack(0, 1)); // ...
+
+
+  HANDLE_CODE(asn1::pack_integer(bref, band_nr_r15, (uint16_t)1, (uint16_t)1024));
+ /* if (ca_bw_class_ul_eutra_r15_present) {
+    HANDLE_CODE(pack_enum(bref, ca_bw_class_ul_eutra_r15));
+  }
+  if (ca_bw_class_dl_eutra_r15_present) {
+	  HANDLE_CODE(pack_enum(bref, ca_bw_class_dl_eutra_r15));
+  }
+*/
+  return asn1::SRSASN_SUCCESS;
+}
+asn1::SRSASN_CODE freq_band_info_nr_v1510_s::unpack(asn1::cbit_ref& bref)
+{
+  HANDLE_CODE(bref.unpack(max_bandwidth_requested_ul_nr_r15_present, 1));
+  HANDLE_CODE(bref.unpack(max_bandwidth_requested_dl_nr_r15_present, 1));
+
+  HANDLE_CODE(asn1::unpack_integer(band_nr_r15, bref, (uint16_t)1, (uint16_t)1024));
+  /*if (ca_bw_class_ul_eutra_r15_present) {
+    HANDLE_CODE(unpack_enum(ca_bw_class_ul_eutra_r15, bref));
+  }
+  if (ca_bw_class_dl_eutra_r15_present) {
+	  HANDLE_CODE(unpack_enum(ca_bw_class_dl_eutra_r15, bref));
+  }
+*/
+  return asn1::SRSASN_SUCCESS;
+}
+void freq_band_info_nr_v1510_s::to_json(asn1::json_writer& j) const
+{
+  /*j.start_obj();
+  j.write_int("bandEUTRA-r10", band_eutra_r10);
+  if (band_params_ul_r10_present) {
+    j.start_array("bandParametersUL-r10");
+    for (uint32_t i1 = 0; i1 < band_params_ul_r10.size(); ++i1) {
+      band_params_ul_r10[i1].to_json(j);
+    }
+    j.end_array();
+  }
+  if (band_params_dl_r10_present) {
+    j.start_array("bandParametersDL-r10");
+    for (uint32_t i1 = 0; i1 < band_params_dl_r10.size(); ++i1) {
+      band_params_dl_r10[i1].to_json(j);
+    }
+    j.end_array();
+  }
+  j.end_obj();*/
+}
+
+
+// Type X just for testing quickly
+
+asn1::SRSASN_CODE freq_band_info_X_v1510_s::pack(asn1::bit_ref& bref) const
+{
+
+	if(band_nr_r15 > 0)
+	{
+		HANDLE_CODE(bref.pack(1, 1)); // NR
+	  HANDLE_CODE(bref.pack(0, 1));
+	  HANDLE_CODE(bref.pack(0, 1));
+	  HANDLE_CODE(bref.pack(0, 1)); // max carriers
+	  HANDLE_CODE(bref.pack(0, 1)); // ...
+
+	  HANDLE_CODE(asn1::pack_integer(bref, band_nr_r15, (uint16_t)1, (uint16_t)1024));
+	}
+	else if(band_eutra_r15 > 0)
+	{
+		HANDLE_CODE(bref.pack(0, 1)); // EUTRA
+		  HANDLE_CODE(bref.pack(0, 1));
+		  HANDLE_CODE(bref.pack(0, 1));
+		  HANDLE_CODE(asn1::pack_integer(bref, band_eutra_r15, (uint16_t)1, (uint16_t)256));
+	}
+  return asn1::SRSASN_SUCCESS;
+}
+asn1::SRSASN_CODE freq_band_info_X_v1510_s::unpack(asn1::cbit_ref& bref)
+{
+
+  return asn1::SRSASN_SUCCESS;
+}
+void freq_band_info_X_v1510_s::to_json(asn1::json_writer& j) const
+{
+//
+}
+
+asn1::SRSASN_CODE freq_band_list_v1510_s_l::pack(asn1::bit_ref& bref) const
+{
+
+  HANDLE_CODE(asn1::pack_dyn_seq_of(bref, freq_band_list_v1510, 1, 1280));
+  return asn1::SRSASN_SUCCESS;
+}
+
+asn1::SRSASN_CODE freq_band_list_v1510_s_l::unpack(asn1::cbit_ref& bref)
+{
+
+	HANDLE_CODE(asn1::unpack_dyn_seq_of(freq_band_list_v1510, bref, 1, 1280));
+
+  return asn1::SRSASN_SUCCESS;
+}
+void freq_band_list_v1510_s_l::to_json(asn1::json_writer& j) const
+{
+  /*j.start_obj();
+  j.write_int("bandEUTRA-r10", band_eutra_r10);
+  if (band_params_ul_r10_present) {
+    j.start_array("bandParametersUL-r10");
+    for (uint32_t i1 = 0; i1 < band_params_ul_r10.size(); ++i1) {
+      band_params_ul_r10[i1].to_json(j);
+    }
+    j.end_array();
+  }
+  if (band_params_dl_r10_present) {
+    j.start_array("bandParametersDL-r10");
+    for (uint32_t i1 = 0; i1 < band_params_dl_r10.size(); ++i1) {
+      band_params_dl_r10[i1].to_json(j);
+    }
+    j.end_array();
+  }
+  j.end_obj();*/
+}

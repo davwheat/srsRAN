@@ -90,6 +90,7 @@ public:
                               bool                         phy_cfg_updated = true,
                               srsran::const_byte_span      nas_pdu         = {});
   void send_security_mode_command();
+  void ue_cap_debug(std::string format, ...);
   void send_ue_cap_enquiry(const std::vector<asn1::rrc::rat_type_opts::options>& rats);
   void send_ue_info_req();
 
