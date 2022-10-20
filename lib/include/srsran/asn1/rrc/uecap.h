@@ -115,6 +115,52 @@ struct ue_cap_enquiry_v1510_ies_s {
   void        to_json(json_writer& j) const;
 };
 
+//FreqBandInformationNR-v1510 ::= SEQUENCE
+struct freq_band_info_nr_v1510_s {
+/*
+	struct types_opts {
+			enum options {EUTRA, NR} value; // add back NR
+		};
+		 typedef enumerated<types_opts> types;
+		 types  type_;
+*/
+	bool                      max_bandwidth_requested_dl_nr_r15_present     = false;
+	bool                      max_bandwidth_requested_ul_nr_r15_present     = false;
+
+	uint16_t                  band_nr_r15                 = 1;
+	/*
+   maxBandwidthRequestedDL AggregatedBandwidth OPTIONAL, -- Need N
+   maxBandwidthRequestedUL AggregatedBandwidth OPTIONAL, -- Need N
+   maxCarriersRequestedDL INTEGER (1..maxNrofServingCells) OPTIONAL, -- Need N
+   maxCarriersRequestedUL INTEGER (1..maxNrofServingCells) OPTIONAL -- Need N
+}
+	*/
+	  // sequence methods
+	  asn1::SRSASN_CODE pack(asn1::bit_ref& bref) const;
+	  asn1::SRSASN_CODE unpack(asn1::cbit_ref& bref);
+	  void        to_json(asn1::json_writer& j) const;
+};
+
+struct freq_band_info_X_v1510_s {
+  uint16_t                  band_nr_r15                 = 0;
+  uint16_t                  band_eutra_r15                 = 0;
+
+  // sequence methods
+  asn1::SRSASN_CODE pack(asn1::bit_ref& bref) const;
+  asn1::SRSASN_CODE unpack(asn1::cbit_ref& bref);
+  void        to_json(asn1::json_writer& j) const;
+};  
+
+typedef asn1::dyn_array<freq_band_info_X_v1510_s> freq_band_list_v1510_s;
+
+struct freq_band_list_v1510_s_l {
+  freq_band_list_v1510_s freq_band_list_v1510;
+  asn1::SRSASN_CODE pack(asn1::bit_ref& bref) const;
+  asn1::SRSASN_CODE unpack(asn1::cbit_ref& bref);
+  void        to_json(asn1::json_writer& j) const;
+};
+
+
 // UECapabilityEnquiry-v1430-IEs ::= SEQUENCE
 struct ue_cap_enquiry_v1430_ies_s {
   bool                        request_diff_fallback_comb_list_r14_present = false;

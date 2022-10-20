@@ -1,3 +1,31 @@
+// Whether to send NR-EUTRA capability message (NR NSA)
+#define SEND_NR_ENDC_CAPABILITY 1
+
+// Whether to send NR SA capability message
+#define SEND_NR_SA_CAPABILITY 1
+
+
+// List of LTE (EUTRA) bands to include in capability request
+//
+// NOTE: Only first 16 are included in r11 request. All are included in MRDC-r15 block.
+//
+// Valid LTE bands: 1,2,3,4,5,7,8,11,12,13,14,17,18,19,20,21,24,25,26,28,29,30,31,32,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,65,66,67,68,69,70,71,72,73,74,75,76,85,87,88
+#define EUTRA_BAND_LIST_CSV 1,2,3,4,5,7,8,11,12,13,14,17,18,19,20,21,24,25,26,28,29,30,31,32,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,65,66,67,68,69,70,71,72,73,74,75,76,85,87,88
+
+// List of NR bands to include in capability request
+//
+// All bands are send as part of MRDC (NSA) and SA capability requests, reliant on the values
+// of SEND_NR_ENDC_CAPABILITY and SEND_NR_SA_CAPABILITY above.
+//
+// Valid NR bands: 1,2,3,5,7,8,12,13,14,18,20,24,25,26,28,29,30,34,38,39,40,41,46,47,48,50,51,53,65,66,67,70,71,74,75,76,77,78,79,80,81,82,83,84,85,86,89,90,91,92,93,94,95,96,97,98,99,257,258,259,260,261,262
+#define NR_BAND_LIST_CSV 1,2,3,5,7,8,12,13,14,18,20,24,25,26,28,29,30,34,38,39,40,41,46,47,48,50,51,53,65,66,67,70,71,74,75,76,77,78,79,80,81,82,83,84,85,86,89,90,91,92,93,94,95,96,97,98,99,257,258,259,260,261,262
+
+// -------------------------------------------------
+// -------------------------------------------------
+// -------------------------------------------------
+// -------------------------------------------------
+// -------------------------------------------------
+
 /**
  * Copyright 2013-2022 Software Radio Systems Limited
  *
@@ -95,7 +123,9 @@ int rrc::ue::init()
   }
 
   mobility_handler = make_rnti_obj<rrc_mobility>(rnti, this);
-  if (parent->rrc_nr != nullptr) {
+
+  // ensure endc handler created when wanting to send endc/sa capability
+  if (parent->rrc_nr != nullptr || SEND_NR_ENDC_CAPABILITY || SEND_NR_SA_CAPABILITY) {
     endc_handler = make_rnti_obj<rrc_endc>(rnti, this, parent->cfg.endc_cfg);
   }
 
@@ -346,6 +376,8 @@ void rrc::ue::parse_ul_dcch(uint32_t lcid, srsran::unique_byte_buffer_t pdu)
 
   transaction_id = 0;
 
+  // ue_cap_debug("UL_DCCH | state %d\n", state);
+
   switch (ul_dcch_msg.msg.c1().type()) {
     case ul_dcch_msg_type_c::c1_c_::types::rrc_conn_setup_complete:
       save_ul_message(std::move(original_pdu));
@@ -384,6 +416,7 @@ void rrc::ue::parse_ul_dcch(uint32_t lcid, srsran::unique_byte_buffer_t pdu)
       break;
     case ul_dcch_msg_type_c::c1_c_::types::security_mode_complete:
       handle_security_mode_complete(&ul_dcch_msg.msg.c1().security_mode_complete());
+      ue_cap_debug("UE_CAP_HANDLER | Sending EUTRA UE cap\n");
       send_ue_cap_enquiry({asn1::rrc::rat_type_opts::options::eutra});
       state = RRC_STATE_WAIT_FOR_UE_CAP_INFO;
       break;
@@ -392,14 +425,41 @@ void rrc::ue::parse_ul_dcch(uint32_t lcid, srsran::unique_byte_buffer_t pdu)
       break;
     case ul_dcch_msg_type_c::c1_c_::types::ue_cap_info:
       if (handle_ue_cap_info(&ul_dcch_msg.msg.c1().ue_cap_info()) == SRSRAN_SUCCESS) {
-        if (endc_handler != nullptr && endc_handler->is_endc_supported() && state == RRC_STATE_WAIT_FOR_UE_CAP_INFO) {
-          // request EUTRA-NR and NR capabilities as well
-          send_ue_cap_enquiry({asn1::rrc::rat_type_opts::options::eutra_nr, asn1::rrc::rat_type_opts::options::nr});
-          state = RRC_STATE_WAIT_FOR_UE_CAP_INFO_ENDC; // avoid endless loop
-        } else {
+        if (endc_handler == nullptr) {
+          ue_cap_debug("UE_CAP_HANDLER | ENDC handler is null -- cannot send ENDC UE cap message\n");
           // send RRC reconfiguration to complete procedure
           send_connection_reconf(std::move(pdu));
+          return;
         }
+
+        if (endc_handler->is_endc_supported()) {
+          ue_cap_debug("UE_CAP_HANDLER | ENDC is not supported on target UE -- cannot send ENDC UE cap message\n");
+          // send RRC reconfiguration to complete procedure
+          send_connection_reconf(std::move(pdu));
+          return;
+        }
+
+        // if we should send MRDC ue cap...
+        if (SEND_NR_ENDC_CAPABILITY && state == RRC_STATE_WAIT_FOR_UE_CAP_INFO) {
+          ue_cap_debug("UE_CAP_HANDLER | Sending NR ENDC UE cap\n");
+          // request EUTRA-NR capabilities as well
+          send_ue_cap_enquiry({asn1::rrc::rat_type_opts::options::eutra_nr,asn1::rrc::rat_type_opts::options::nr});
+          state = RRC_STATE_WAIT_FOR_UE_CAP_INFO_ENDC; // avoid endless loop
+          return;
+        }
+        
+        // if we should send SA ue cap and MRDC cap is already sent
+        // OR if we should send SA ue cap but not MRDC cap
+        if (SEND_NR_SA_CAPABILITY && (state == RRC_STATE_WAIT_FOR_UE_CAP_INFO_ENDC || (!SEND_NR_ENDC_CAPABILITY && state == RRC_STATE_WAIT_FOR_UE_CAP_INFO))) {
+          ue_cap_debug("UE_CAP_HANDLER | Sending NR SA UE cap\n");
+          // request NR SA capabilities as well
+          send_ue_cap_enquiry({asn1::rrc::rat_type_opts::options::nr});
+          state = RRC_STATE_WAIT_FOR_UE_CAP_INFO_NRSA; // avoid endless loop
+          return;
+        }
+
+          // send RRC reconfiguration to complete procedure
+          send_connection_reconf(std::move(pdu));
       } else {
         send_connection_reject(procedure_result_code::none);
         state = RRC_STATE_IDLE;
@@ -1025,11 +1085,73 @@ void rrc::ue::handle_security_mode_failure(security_mode_fail_s* msg)
   parent->logger.info("SecurityModeFailure transaction ID: %d", msg->rrc_transaction_id);
 }
 
+#define UE_CAP_DEBUG 1
+
+#if UE_CAP_DEBUG
+void rrc::ue::ue_cap_debug(std::string format, ...) {
+  va_list argptr;
+  va_start(argptr, format);
+  vfprintf(stdout, format.c_str(), argptr);
+  va_end(argptr);
+}
+#else
+void rrc::ue::ue_cap_debug(std::string format, ...) {}
+#endif
+
+/**
+ * Without disabling optimisations, many issues ensue with the below code
+ * block relating to looping over the bands in the vectors.
+ *
+ * Not sure how to fix that, honestly.
+ */
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
+
 /*
  * UE capabilities info
  */
 void rrc::ue::send_ue_cap_enquiry(const std::vector<asn1::rrc::rat_type_opts::options>& rats)
 {
+  // debug log
+  ue_cap_debug("UE_CAP | Beginning UE capability message...\n");
+
+  bool eutra_nr = false;
+  bool eutra = false;
+  bool nr_sa = false;
+
+  // If eutra_nr is in RAT list, set flag to true
+  if (std::find(rats.begin(), rats.end(), asn1::rrc::rat_type_opts::options::eutra_nr) != rats.end()) {
+      eutra_nr = true;
+  }
+
+  // If eutra is in RAT list, set flag to true
+  if (std::find(rats.begin(), rats.end(), asn1::rrc::rat_type_opts::options::eutra) != rats.end()) {
+      eutra = true;
+  }
+
+  // If eutra_nr is in RAT list, set flag to true
+  if (std::find(rats.begin(), rats.end(), asn1::rrc::rat_type_opts::options::nr) != rats.end()) {
+      nr_sa = true;
+  }
+
+  // debug log
+  ue_cap_debug("UE_CAP | Use EN_DC? %s\n", eutra_nr ? "YES" : "NO");
+
+  // EUTRA requested bands
+  const std::vector<int> EUTRABands = { EUTRA_BAND_LIST_CSV };
+  std::size_t EUTRABandsCount = EUTRABands.size();
+
+  // Number of sets of 16 bands we have
+  int eutraBandSetCount = ceil((float)EUTRABandsCount / (float)16);
+
+  // NR(-MRDC) requested bands
+  const std::vector<int> NRBands = { NR_BAND_LIST_CSV };
+  size_t NRBandsCount = NRBands.size();
+
+  ue_cap_debug("UE_CAP | Bands to request configured!\n");
+  ue_cap_debug("UE_CAP | EUTRA band count: %d\n", EUTRABandsCount);
+  ue_cap_debug("UE_CAP |    NR band count: %d\n", NRBandsCount);
+
   dl_dcch_msg_s dl_dcch_msg;
   dl_dcch_msg.msg.set_c1().set_ue_cap_enquiry().crit_exts.set_c1().set_ue_cap_enquiry_r8();
 
@@ -1041,8 +1163,86 @@ void rrc::ue::send_ue_cap_enquiry(const std::vector<asn1::rrc::rat_type_opts::op
     enq->crit_exts.c1().ue_cap_enquiry_r8().ue_cap_request[i].value = rats.at(i);
   }
 
+  if (eutra || eutra_nr || nr_sa) {
+    enq->crit_exts.c1().ue_cap_enquiry_r8().non_crit_ext_present = true;
+    enq->crit_exts.c1().ue_cap_enquiry_r8().non_crit_ext.non_crit_ext_present = true;
+  }
+
+  if (eutra_nr || nr_sa) {
+    enq->crit_exts.c1().ue_cap_enquiry_r8().non_crit_ext.non_crit_ext.non_crit_ext_present = true;
+    enq->crit_exts.c1().ue_cap_enquiry_r8().non_crit_ext.non_crit_ext.non_crit_ext.non_crit_ext_present = true;
+    enq->crit_exts.c1().ue_cap_enquiry_r8().non_crit_ext.non_crit_ext.non_crit_ext.non_crit_ext.non_crit_ext_present = true;
+    enq->crit_exts.c1().ue_cap_enquiry_r8().non_crit_ext.non_crit_ext.non_crit_ext.non_crit_ext.non_crit_ext.requested_freq_bands_nr_mrdc_r15_present = true;
+  }
+
+  freq_band_list_v1510_s_l NRList;
+  NRList.freq_band_list_v1510.resize(static_cast<int>(((!eutra_nr && !nr_sa) ? 0 : NRBandsCount) + EUTRABandsCount));
+
+  if (EUTRABandsCount > 0) {
+    ue_cap_debug("UE_CAP | Setting up EUTRA bands...\n");
+
+    if (eutra) {
+      enq->crit_exts.c1().ue_cap_enquiry_r8().non_crit_ext.non_crit_ext.requested_freq_bands_r11_present = true;
+      enq->crit_exts.c1().ue_cap_enquiry_r8().non_crit_ext.non_crit_ext.requested_freq_bands_r11.resize(std::min(16, (int)EUTRABandsCount));
+
+      int i = 0;
+      for (auto it = EUTRABands.begin(); it != EUTRABands.end() && i < 16; ++it) {
+          ue_cap_debug("UE_CAP | EUTRA %d of %d: Band %d\n", i + 1, (int)EUTRABands.size(), *it);
+          enq->crit_exts.c1().ue_cap_enquiry_r8().non_crit_ext.non_crit_ext.requested_freq_bands_r11[i] = *it;
+          ++i;
+      }
+    }
+
+    if (eutra_nr) {
+      int i = 0;
+      for (auto it = EUTRABands.begin(); it != EUTRABands.end(); ++it) {
+            ue_cap_debug("UE_CAP | EUTRA (MRDC) %d of %d: Band %d\n", i + 1, (int)EUTRABands.size(), *it);
+          NRList.freq_band_list_v1510[i].band_eutra_r15 = *it;
+          ++i;
+      }
+    }
+  }
+
+  if (NRBandsCount > 0) {
+    ue_cap_debug("UE_CAP | Setting up NR (ENDC) bands...\n");
+
+    if (eutra_nr || nr_sa) {
+      int i = 0;
+      for (auto it = NRBands.begin(); it != NRBands.end(); ++it) {
+        ue_cap_debug("UE_CAP | NR (MRDC) %d of %d: Band %d\n", i + 1, (int)NRBands.size(), *it);
+        NRList.freq_band_list_v1510[EUTRABandsCount + i].band_nr_r15 = *it;
+        ++i;
+      }
+    }
+  }
+
+  ue_cap_debug("UE_CAP | Packing bands list...\n");
+
+  if (eutra_nr || nr_sa) {
+    uint8_t       buf[2048];
+    asn1::bit_ref bref(buf, sizeof(buf));
+
+    NRList.pack(bref);
+    bref.align_bytes_zero();
+
+    uint32_t cap_len = (uint32_t)bref.distance_bytes(buf);
+    ue_cap_debug("UE_CAP | bit ref is %d bytes long\n", cap_len);
+
+    enq->crit_exts.c1().ue_cap_enquiry_r8().non_crit_ext.non_crit_ext.non_crit_ext.non_crit_ext.non_crit_ext.requested_freq_bands_nr_mrdc_r15.resize(cap_len);
+    ue_cap_debug("UE_CAP | Available size is %d bytes\n", enq->crit_exts.c1().ue_cap_enquiry_r8().non_crit_ext.non_crit_ext.non_crit_ext.non_crit_ext.non_crit_ext.requested_freq_bands_nr_mrdc_r15.size());
+    memcpy(enq->crit_exts.c1().ue_cap_enquiry_r8().non_crit_ext.non_crit_ext.non_crit_ext.non_crit_ext.non_crit_ext.requested_freq_bands_nr_mrdc_r15.data(), buf, cap_len);
+  }
+
+  asn1::json_writer js{};
+  enq->to_json(js);
+  ue_cap_debug(js.to_string().c_str());
+  ue_cap_debug("\n");
+
+  ue_cap_debug("UE_CAP | Sending capability message...\n");
   send_dl_dcch(&dl_dcch_msg);
 }
+
+#pragma GCC pop_options
 
 /**
  * @brief Handle the reception of UE capability information message
@@ -1322,8 +1522,11 @@ void rrc::ue::send_dl_ccch(dl_ccch_msg_s* dl_ccch_msg, std::string* octet_str)
 bool rrc::ue::send_dl_dcch(const dl_dcch_msg_s* dl_dcch_msg, srsran::unique_byte_buffer_t pdu, std::string* octet_str)
 {
   if (pdu == nullptr) {
+    ue_cap_debug("send_dl_dcch | nullptr\n");
     pdu = srsran::make_byte_buffer();
+
     if (pdu == nullptr) {
+      ue_cap_debug("send_dl_dcch | allocating pdu\n");
       parent->logger.error("Allocating pdu");
       return false;
     }
@@ -1331,6 +1534,7 @@ bool rrc::ue::send_dl_dcch(const dl_dcch_msg_s* dl_dcch_msg, srsran::unique_byte
 
   asn1::bit_ref bref(pdu->msg, pdu->get_tailroom());
   if (dl_dcch_msg->pack(bref) == asn1::SRSASN_ERROR_ENCODE_FAIL) {
+    ue_cap_debug("Failed to encode DL-DCCH-Msg for rnti=0x%x\n", rnti);
     parent->logger.error("Failed to encode DL-DCCH-Msg for rnti=0x%x", rnti);
     return false;
   }

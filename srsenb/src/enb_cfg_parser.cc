@@ -2159,8 +2159,10 @@ int set_derived_args_nr(all_args_t* args_, rrc_nr_cfg_t* rrc_nr_cfg_, phy_cfg_t*
 
 namespace sib_sections {
 
-int parse_sib1(std::string filename, sib_type1_s* data)
+int parse_sib1(std::string filename, sib_type1_s* data, all_args_t* args)
 {
+  uint16_t lte_band = (uint16_t)srsran_band_get_band(args->enb.dl_earfcn);
+
   parser::section sib1("sib1");
 
   sib1.add_field(make_asn1_enum_str_parser("intra_freq_reselection", &data->cell_access_related_info.intra_freq_resel));
@@ -2168,6 +2170,53 @@ int parse_sib1(std::string filename, sib_type1_s* data)
   sib1.add_field(new parser::field<int8>("p_max", &data->p_max, &data->p_max_present));
   sib1.add_field(make_asn1_enum_str_parser("cell_barred", &data->cell_access_related_info.cell_barred));
   sib1.add_field(make_asn1_enum_number_parser("si_window_length", &data->si_win_len));
+
+  data->freq_band_ind =  (uint8_t)srsran_band_get_band(args->enb.dl_earfcn);
+
+  if(lte_band > 64)
+  {
+    sib1.add_field(new parser::field<bool>("late_non_crit_ext_present", &data->non_crit_ext.late_non_crit_ext_present));
+    //dyn_octstring doct(sizeof(sib_type1_v8h0_ies_s));
+    //data->non_crit_ext.late_non_crit_ext = doct;
+
+    data->non_crit_ext_present = true;
+    data->non_crit_ext.late_non_crit_ext_present = true;
+    data->non_crit_ext.non_crit_ext_present = true;
+    sib_type1_v8h0_ies_s v8h0_ies_s;
+    v8h0_ies_s.non_crit_ext_present = true;
+
+    // MFBI only
+    /*
+    fs.multi_band_info_list_present = true;
+    multi_band_info_list_l il(1);
+    il[0] = 64;
+    fs.multi_band_info_list = il;
+    */
+    // now v9 to get b66+
+
+    sib_type1_v9e0_ies_s v9e0_ies_s;
+    /*
+    multi_band_info_list_l msli(1);
+    msli[0] = 71;
+    ms.multi_band_info_list = msli;
+    */
+    v9e0_ies_s.freq_band_ind_v9e0_present = true;
+    v9e0_ies_s.freq_band_ind_v9e0 =  lte_band;
+    v8h0_ies_s.non_crit_ext = v9e0_ies_s;
+
+    std::cout << "value is " <<  data->freq_band_ind << std::endl;
+
+    uint8_t       buf[64];
+    asn1::bit_ref bref(buf, sizeof(buf));
+    v8h0_ies_s.pack(bref);
+    bref.align_bytes_zero();
+
+    uint32_t cap_len = (uint32_t)bref.distance_bytes(buf);
+    std::cout << " length is " << std::to_string(cap_len) << std::endl;
+    data->non_crit_ext.late_non_crit_ext.resize(cap_len);
+    memcpy(data->non_crit_ext.late_non_crit_ext.data(), buf, cap_len);
+  } // end of band > 64
+
   sib1.add_field(new parser::field<uint8_t>("system_info_value_tag", &data->sys_info_value_tag));
 
   // sched_info subsection uses a custom field class
@@ -2587,7 +2636,7 @@ int parse_sibs(all_args_t* args_, rrc_cfg_t* rrc_cfg_, srsenb::phy_cfg_t* phy_co
   sib_type13_r9_s* sib13 = &rrc_cfg_->sibs[12].set_sib13_v920();
 
   sib_type1_s* sib1 = &rrc_cfg_->sib1;
-  if (sib_sections::parse_sib1(args_->enb_files.sib_config, sib1) != SRSRAN_SUCCESS) {
+  if (sib_sections::parse_sib1(args_->enb_files.sib_config, sib1, args_) != SRSRAN_SUCCESS) {
     return SRSRAN_ERROR;
   }
 
