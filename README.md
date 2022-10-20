@@ -10,7 +10,21 @@ You can set the bands in the `send_ue_cap_enquiry` function body.
 
 TBD
 
-## Build instructions
+## Running locally
+
+### Open5GS
+
+Open5GS handles the 5G/4G core which srsRAN will connect to.
+
+Follow these instructions: https://open5gs.org/open5gs/docs/guide/01-quickstart/
+
+### Install dependencies
+
+```
+sudo apt-get install build-essential cmake libfftw3-dev libmbedtls-dev libboost-program-options-dev libconfig++-dev libsctp-dev
+```
+
+### Build srsRAN
 
 ```
 mkdir build
